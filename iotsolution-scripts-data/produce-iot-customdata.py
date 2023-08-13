@@ -29,8 +29,8 @@ import time
 
 # Set Global variables for VIPER and HPDE - You can change IP and Port for your setup of 
 # VIPER and HPDE
-#VIPERHOST="https://127.0.0.1"
-#VIPERPORT=8000
+VIPERHOST="https://127.0.0.1"
+VIPERPORT=8000
 
 #VIPERHOST="https://10.0.0.144"
 #VIPERPORT=62049
@@ -206,6 +206,5 @@ while True:
     producetokafka(line.strip(), "", "",producerid,maintopic,"")
     time.sleep(0.2)
   except Exception as e:
-     pass  
   
 file1.close()
