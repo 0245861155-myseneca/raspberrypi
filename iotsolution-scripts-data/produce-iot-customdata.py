@@ -110,7 +110,7 @@ maintopic = 'iot-mainstream'
 # Setup Kafka topic
 producerid = ''
 try:
-    topic, producerid = setupkafkatopic(maintopic)
+    topic, Company = setupkafkatopic(maintopic)
 except Exception as e:
     pass
 
@@ -124,17 +124,16 @@ while True:
 
     try:
         jsonline = json.loads(line)
-        lat, long, ident = getlatlong(reader, jsonline['metadata']['dsn'], 'dsn')
-
+        lat, long, ident = getlatlong(reader, jsonline['Company']['dsn'], 'dsn')
         new_json = {
-            "Company": jsonline['metadata']['Company'],
-            "Global_Rank": int(jsonline['metadata']['Global_Rank']),
-            "Sales_(Billion_$)": float(jsonline['metadata']['sales']),
-            "Profits_(Billion_$)": float(jsonline['metadata']['Profits']),
-            "Assets_(Billion_$)": float(jsonline['metadata']['assets']),
-            "Market_Value_(Billion_$)": float(jsonline['metadata']['market_value']),
-            "Country": jsonline['metadata']['Country'],
-            "Continent": jsonline['metadata']['Continent'],
+            "Company": jsonline['Company'],
+            "Global_Rank": int(jsonline['Global Rank']),
+            "Sales_(Billion_$)": float(jsonline['sales']),
+            "Profits_(Billion_$)": float(jsonline['Profits']),
+            "Assets_(Billion_$)": float(jsonline['assets']),
+            "Market_Value_(Billion_$)": float(jsonline['market_value']),
+            "Country": jsonline['Country'],
+            "Continent": jsonline['Continent'],
             "Latitude": float(lat),
             "Longitude": float(long),
             "Identifier": ident

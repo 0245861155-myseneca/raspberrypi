@@ -183,7 +183,7 @@ while True:
     if not line:
         #break
        file1.seek(0)
-    producetokafka(line.strip(), "", "",producerid,maintopic,"")
+    producetokafka(line.strip(), "", "",company,asset,"")
     #time.sleep(0.1)
   except Exception as e:
      pass  
