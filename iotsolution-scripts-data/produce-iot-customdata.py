@@ -99,13 +99,10 @@ def csvlatlong(filename):
 
 
 def getlatlong(reader, search, key):
-    i = 0
     locations = [i for i, t in enumerate(reader) if t[0] == search]
     value_at_index = list(reader.values())[locations[0]]
     return value_at_index['lat'], value_at_index['long'], value_at_index['identifier']
 
-
-# ...
 
 inputfile = basedir + '/IotSolution/IoTData.txt'
 maintopic = 'iot-mainstream'
@@ -131,23 +128,23 @@ while True:
 
         new_json = {
             "Company": jsonline['metadata']['Company'],
-            "Global_Rank": jsonline['metadata']['Global_Rank'],
-            "Sales_(Billion_$)": jsonline['metadata']['sales'],
-            "Profits_(Billion_$)": jsonline['metadata']['Profits'],
-            "Assets_(Billion_$)": jsonline['metadata']['assets'],
-            "Market_Value_(Billion_$)": jsonline['metadata']['market_value'],
+            "Global_Rank": int(jsonline['metadata']['Global_Rank']),
+            "Sales_(Billion_$)": float(jsonline['metadata']['sales']),
+            "Profits_(Billion_$)": float(jsonline['metadata']['Profits']),
+            "Assets_(Billion_$)": float(jsonline['metadata']['assets']),
+            "Market_Value_(Billion_$)": float(jsonline['metadata']['market_value']),
             "Country": jsonline['metadata']['Country'],
             "Continent": jsonline['metadata']['Continent'],
-            "Latitude": lat,
-            "Longitude": long,
+            "Latitude": float(lat),
+            "Longitude": float(long),
             "Identifier": ident
         }
 
         line_to_produce = json.dumps(new_json)
-        
+
         if not line:
             file1.seek(0)
-        
+
         producetokafka(line_to_produce, "", "", producerid, maintopic, "")
         time.sleep(0.2)
     except Exception as e:
