@@ -1,211 +1,105 @@
-# Developed by: Sebastian Maurice, PhD
-# Toronto, Ontario Canada
-# OTICS Advanced Analytics
-
-#######################################################################################################################################
-#  This file will create the mapping for DSN id to TML id
-#########################################################################################################################################
-
-# TML python library
 import maadstml
-
-# Uncomment IF using Jupyter notebook 
-#import nest_asyncio
-
 import json
-import numpy as np
-import pandas as pd
-from collections import OrderedDict
-import random
 import csv
-import gc
-import os
-from itertools import chain
-from random import randrange
-import math
-import imp
 import time
+import os
 
+# Set your base directory
+basedir = "/your/base/directory"
 
-# Set Global variables for VIPER and HPDE - You can change IP and Port for your setup of 
-# VIPER and HPDE
-VIPERHOST="https://127.0.0.1"
-VIPERPORT=8000
+# Set the VIPER token
+def get_viper_token():
+    with open(os.path.join(basedir, "admin.tok"), "r") as f:
+        return f.read()
 
-#VIPERHOST="https://10.0.0.144"
-#VIPERPORT=62049
+VIPERTOKEN = get_viper_token()
 
-# Set Global variable for Viper confifuration file - change the folder path for your computer
-basedir = os.environ['userbasedir']
-viperconfigfile=basedir + "/Viper-produce/viper.env"
+# Set up Kafka topic
+def setup_kafka_topic(topic_name):
+    # Set your company and personal information
+    company_name = "OTICS"
+    my_name = "Sebastian"
+    my_email = "Sebastian.Maurice"
+    my_location = "Toronto"
 
+    # Other Kafka topic parameters
+    replication = 1
+    num_partitions = 1
+    enable_tls = 1
+    broker_host = ""
+    broker_port = -999
+    microservice_id = ""
 
-# Set Global Host/Port for VIPER - You may change this to fit your configuration
-VIPERHOST=''
-VIPERPORT=''
-HTTPADDR='https://'
+    # Create the Kafka topic
+    result = maadstml.vipercreatetopic(VIPERTOKEN, VIPERHOST, VIPERPORT, topic_name, company_name,
+                                      my_name, my_email, my_location, "", enable_tls,
+                                      broker_host, broker_port, num_partitions, replication,
+                                      microservice_id)
+    topic_id = json.loads(result)[0]["ProducerId"]
 
+    return topic_id
 
-#############################################################################################################
-#                                      STORE VIPER TOKEN
-# Get the VIPERTOKEN from the file admin.tok - change folder location to admin.tok
-# to your location of admin.tok
-def getparams():
-     global VIPERHOST, VIPERPORT, HTTPADDR
-     with open("/Viper-produce/admin.tok", "r") as f:
-        VIPERTOKEN=f.read()
+# Read CSV data for latitude, longitude, and identifier
+def read_csv_lat_long(filename):
+    lookup_dict = {}
 
-     if VIPERHOST=="":
-        with open('/Viper-produce/viper.txt', 'r') as f:
-          output = f.read()
-          VIPERHOST = HTTPADDR + output.split(",")[0]
-          VIPERPORT = output.split(",")[1]
-          
-     return VIPERTOKEN
+    with open(filename, "r") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            lookup_dict[(row["dsn"], row["lat"].lower(),
+                         row["long"].lower(), row["identifier"])] = row
 
-VIPERTOKEN=getparams()
-if VIPERHOST=="":
-    print("ERROR: Cannot read viper.txt: VIPERHOST is empty or HPDEHOST is empty")
+    return lookup_dict
 
+# Get latitude, longitude, and identifier from lookup dictionary
+def get_lat_long_identifier(reader, search):
+    # Replace this with your logic to retrieve lat, long, and identifier
+    random_entry = random.choice(list(reader))
+    return random_entry["lat"], random_entry["long"], random_entry["identifier"]
 
-def setupkafkatopic(topicname):
-          # Set personal data
-      companyname="OTICS"
-      myname="Sebastian"
-      myemail="Sebastian.Maurice"
-      mylocation="Toronto"
+# Publish data to Kafka topic
+def publish_to_kafka(value, topic_id, maintopic, substream):
+    delay = 7000
+    enable_tls = 1
 
-      # Replication factor for Kafka redundancy
-      replication=1
-      # Number of partitions for joined topic
-      numpartitions=1
-      # Enable SSL/TLS communication with Kafka
-      enabletls=1
-      # If brokerhost is empty then this function will use the brokerhost address in your
-      # VIPER.ENV in the field 'KAFKA_CONNECT_BOOTSTRAP_SERVERS'
-      brokerhost=''
-      # If this is -999 then this function uses the port address for Kafka in VIPER.ENV in the
-      # field 'KAFKA_CONNECT_BOOTSTRAP_SERVERS'
-      brokerport=-999
-      # If you are using a reverse proxy to reach VIPER then you can put it here - otherwise if
-      # empty then no reverse proxy is being used
-      microserviceid=''
+    try:
+        maadstml.viperproducetotopic(VIPERTOKEN, VIPERHOST, VIPERPORT, maintopic, topic_id,
+                                     enable_tls, delay, "", "", "", 0, value, substream, -999, "")
+    except Exception as e:
+        print("ERROR:", e)
 
+def main():
+    input_file = os.path.join(basedir, "IotSolution/IoTData.txt")
+    maintopic = "iot-mainstream"
 
-      #############################################################################################################
-      #                         CREATE TOPIC TO STORE TRAINED PARAMS FROM ALGORITHM  
-      
-      producetotopic=topicname
+    # Set VIPERHOST and VIPERPORT as needed
+    VIPERHOST = ""
+    VIPERPORT = ""
 
-      description="Topic to store the trained machine learning parameters"
-      result=maadstml.vipercreatetopic(VIPERTOKEN,VIPERHOST,VIPERPORT,producetotopic,companyname,
-                                     myname,myemail,mylocation,description,enabletls,
-                                     brokerhost,brokerport,numpartitions,replication,
-                                     microserviceid='')
-      # Load the JSON array in variable y
-      print("Result=",result)
-      try:
-         y = json.loads(result,strict='False')
-      except Exception as e:
-         y = json.loads(result)
+    try:
+        # Setup Kafka topic
+        topic_id = setup_kafka_topic(maintopic)
 
+        # Read CSV data for latitude, longitude, and identifier
+        reader = read_csv_lat_long(os.path.join(basedir, "IotSolution/dsntmlidmain.csv"))
 
-      for p in y:  # Loop through the JSON ang grab the topic and producerids
-         pid=p['ProducerId']
-         tn=p['Topic']
-         
-      return tn,pid
+        # Read and publish data from the input file
+        with open(input_file, "r") as file1:
+            while True:
+                line = file1.readline()
+                if not line:
+                    file1.seek(0)
+                else:
+                    line = line.replace(";", " ")
+                    jsonline = json.loads(line)
+                    lat, long, ident = get_lat_long_identifier(reader, jsonline["metadata"]["dsn"])
+                    line = f'{line[:-2]},"lat":{lat},"long":{long},"identifier":"{ident}"}}'
+                    publish_to_kafka(line.strip(), topic_id, maintopic, "")
 
+                time.sleep(0.2)
 
-def csvlatlong(filename):
- #dsntmlidmain.csv
-  csvfile = open(filename, 'r')
+    except Exception as e:
+        print("Error:", e)
 
-  fieldnames = ("dsn","oem","identifier","index","lat","long")
-  lookup_dict = {}
-
-  reader = csv.DictReader( csvfile, fieldnames)
-  for row in reader:
-        lookup_dict[(row['dsn'], row['lat'].lower(),
-                    row['long'].lower(),row['identifier'])] = row
-
-  return lookup_dict
-  #i=0
-  #for row in reader:
-   # if i > 0:   
-#     json.dump(row, jsonfile)
- #    jsonfile.write('\n')
-    #i = i +1 
-def getlatlong(reader,search,key):
-  i=0
-  locations = [i for i, t in enumerate(reader) if t[0]==search]
-  value_at_index = list(reader.values())[locations[0]]
-  print(value_at_index['lat'],value_at_index['long'],value_at_index['identifier'])
-  
-  return value_at_index['lat'],value_at_index['long'],value_at_index['identifier']
-
-def getlatlong2(reader):
-
-  #print("arr=",reader)
-  random_lines=random.choice(list(reader))
-
-  return random_lines[1],random_lines[2],random_lines[0]
-
-def producetokafka(value, tmlid, identifier,producerid,maintopic,substream):
-     
-     
-     inputbuf=value     
-     topicid=-999
-
-    # print("value=",value)
-       
-     # Add a 7000 millisecond maximum delay for VIPER to wait for Kafka to return confirmation message is received and written to topic 
-     delay=7000
-     enabletls=1
-
-     try:
-        result=maadstml.viperproducetotopic(VIPERTOKEN,VIPERHOST,VIPERPORT,maintopic,producerid,enabletls,delay,'','', '',0,inputbuf,substream,
-                                            topicid,identifier)
-        print(result)
-     except Exception as e:
-        print("ERROR:",e)
-
-      
-
-inputfile=basedir + '/IotSolution/IoTData.txt'
-
-maintopic='iot-mainstream'
-
-# Setup Kafka topic
-producerid=''
-try:
-  topic,producerid=setupkafkatopic(maintopic)
-except Exception as e:
-  pass
-
-reader=csvlatlong(basedir + '/IotSolution/dsntmlidmain.csv')
-
-k=0
-file1 = open(inputfile, 'r')
-
-while True:
-  line = file1.readline()
-  line = line.replace(";", " ")
-  # add lat/long/identifier
-
-  #line = line[:-2]
-  try:
-    jsonline = json.loads(line)   
-    # YOU CAN REPLACE THIS FUNCTION: getlatlong(reader,jsonline['metadata']['dsn'],'dsn') -----> WITH  getlatlong2(reader) 
-    # fOR EXAMPLE: lat,long,ident=getlatlong2(reader)   
-    lat,long,ident=getlatlong(reader)
-    line = line[:-2] + "," + '"lat":' + lat + ',"long":'+long + ',"identifier":"' + ident + '"}'
-    if not line:
-        #break
-       file1.seek(0)
-    producetokafka(line.strip(), "", "",producerid,maintopic,"")
-    time.sleep(0.2)
-  except Exception as e:
-     pass  
-  
-file1.close()
+if __name__ == "__main__":
+    main()
